@@ -24,16 +24,57 @@ import json
 import socket
 from enum import Enum
 
-voices_and_languages = asyncio.run(edge_tts.list_voices())
-all_languages = "All languages"
-languages = [all_languages] + list(
-    sorted(set([voice.get("Locale") for voice in voices_and_languages]))
-)
-choose_voice = "Choose a voice"
-voices = [choose_voice] + [voice.get("ShortName") for voice in voices_and_languages]
 
-socket_in, socket_out = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM, 0)
-mpv = None
+class Languages:
+    def __init__(self, config):
+        self.voices_and_languages = asyncio.run(edge_tts.list_voices())
+        self.all_languages = "All languages"
+        self.choose_voice = "Choose voice"
+        self.language = config["language"]
+        self.voice = config["voice"]
+        assert self.language in self.get_languages()
+        assert self.voice in self.get_voices()
+
+    def get_languages(self):
+        return [self.all_languages] + list(
+            sorted(set([voice.get("Locale") for voice in self.voices_and_languages]))
+        )
+
+    def get_voices(self):
+        return [self.choose_voice] + [
+            voice.get("ShortName")
+            for voice in self.voices_and_languages
+            if self.language == self.all_languages
+            or self.language == voice.get("Locale")
+        ]
+
+    def set_language(self, language):
+        self.language = language
+        self.voice = self.choose_voice
+
+    def set_voice(self, voice):
+        assert voice in self.get_voices()
+        self.voice = voice
+
+    def use_voice(self, c):
+        if self.voice == self.choose_voice:
+            c.toast("Please choose a voice")
+            return None
+        return self.voice
+
+    def get_voice_idx(self):
+        return self.get_voices().index(self.voice)
+
+    def get_language_idx(self):
+        return self.get_languages().index(self.language)
+
+
+def prefix(value, name, c):
+    if not value.isdigit():
+        c.toast(f'"{name}" is not a number')
+        return None
+    return ("+" if eval(value) >= 0 else "") + value
+
 
 class State(Enum):
     START = 0
@@ -44,31 +85,37 @@ class State(Enum):
 
 state = State.START
 
-# Default values
-language = all_languages
-voice = choose_voice
-remove_file = True
-text = "Enter text here"
-filename = "Filename.mp3"
+socket_in, socket_out = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM, 0)
+mpv = None
+
+with open("config.json", "r") as f:
+    config = json.loads(f.read())
 
 
-def request_tts(c, text, name, rate, pitch, volume):
-    if voice == choose_voice:
-        c.toast("Please choose a voice")
-    elif text == "":
+def request_tts(c, text, name, rate, pitch, volume, languages):
+    global state
+    if text == "":
         c.toast("Please enter some text")
     elif name == "":
         c.toast("Please enter output filename")
     else:
+        voice = languages.use_voice(c)
+        rate_str = prefix(rate, "rate", c)
+        pitch_str = prefix(pitch, "pitch", c)
+        volume_str = prefix(volume, "volume", c)
+        if None in [rate_str, pitch_str, volume_str]:
+            return
         c.toast("Sending request...")
         communicate = edge_tts.Communicate(
             text,
-            voice,
-            rate=rate,
-            pitch=pitch,
-            volume=volume,
+            voice=voice,
+            rate=f"{rate_str}%",
+            pitch=f"{pitch_str}Hz",
+            volume=f"{volume_str}%",
         )
         communicate.save_sync(name)
+        c.toast("The audio file is ready")
+        state = State.DOWNLOADED
 
 
 def send_command(s: socket.socket, command: list):
@@ -96,19 +143,25 @@ with tg.Connection() as c:
     title.settextsize(30)
     title.setmargin(5)
 
-    et1 = tg.EditText(a, text, layout, inputtype="textMultiLine")
-    et2 = tg.EditText(a, filename, layout)
+    et1 = tg.EditText(a, config["text"], layout, inputtype="textMultiLine")
+    et2 = tg.EditText(a, config["filename"], layout)
 
     spinners = tg.LinearLayout(a, layout, vertical=False)
     spinners.setheight(tg.View.WRAP_CONTENT)
     spinners.setlinearlayoutparams(0)
 
     language_spinner = tg.Spinner(a, spinners)
-    language_spinner.setlist(languages)
     voice_spinner = tg.Spinner(a, spinners)
-    voice_spinner.setlist(voices)
 
-    remove_file_checkbox = tg.Checkbox(a, "Remove file on exit", layout, remove_file)
+    languages = Languages(config)
+    language_spinner.setlist(languages.get_languages())
+    language_spinner.selectitem(languages.get_language_idx())
+    voice_spinner.setlist(languages.get_voices())
+    voice_spinner.selectitem(languages.get_voice_idx())
+
+    remove_file_checkbox = tg.Checkbox(
+        a, "Remove file on exit", layout, config["remove_file"]
+    )
     remove_file_checkbox.setheight(tg.View.WRAP_CONTENT)
     remove_file_checkbox.setlinearlayoutparams(0)
 
@@ -117,13 +170,16 @@ with tg.Connection() as c:
     option.setlinearlayoutparams(0)
 
     tg.TextView(a, "Rate: ", option)
-    rate = tg.EditText(a, "+0%", option)
+    rate_et = tg.EditText(a, config["rate"], option)
+    tg.TextView(a, "%", option)
 
     tg.TextView(a, "Pitch: ", option)
-    pitch = tg.EditText(a, "+0Hz", option)
+    pitch_et = tg.EditText(a, config["pitch"], option)
+    tg.TextView(a, "Hz", option)
 
     tg.TextView(a, "Volume: ", option)
-    volume = tg.EditText(a, "+0%", option)
+    volume_et = tg.EditText(a, config["volume"], option)
+    tg.TextView(a, "%", option)
 
     buttons = tg.LinearLayout(a, layout, vertical=False)
     buttons.setheight(tg.View.WRAP_CONTENT)
@@ -138,20 +194,28 @@ with tg.Connection() as c:
             sys.exit()
         elif ev.type == tg.Event.click and ev.value["id"] == request:
             quit_mpv()
-            text = et1.gettext()
-            filename = et2.gettext()
             request_tts(
-                c, text, filename, rate.gettext(), pitch.gettext(), volume.gettext()
+                c,
+                et1.gettext(),
+                et2.gettext(),
+                rate_et.gettext(),
+                pitch_et.gettext(),
+                volume_et.gettext(),
+                languages,
             )
-            c.toast("The audio file is ready")
-            state = State.DOWNLOADED
+            play.settext("play")
         elif ev.type == tg.Event.click and ev.value["id"] == play:
             if state == State.START:
-                c.toast("Press 'request' first")
+                c.toast('Press "request" first')
             elif state == State.DOWNLOADED:
                 assert mpv is None
                 mpv = subprocess.Popen(
-                    ["mpv", filename, f"--input-ipc-client=fd://{socket_in.fileno()}"],
+                    [
+                        "mpv",
+                        config["filename"],
+                        "--loop-playlist",
+                        f"--input-ipc-client=fd://{socket_in.fileno()}",
+                    ],
                     pass_fds=[socket_in.fileno()],
                 )
                 play.settext("pause")
@@ -165,24 +229,20 @@ with tg.Connection() as c:
                 play.settext("pause")
                 state = State.PLAYING
         elif ev.type == tg.Event.itemselected and ev.value["id"] == language_spinner:
-            language = ev.value["selected"]
-            voices = [choose_voice] + [
-                voice.get("ShortName")
-                for voice in voices_and_languages
-                if language == all_languages or voice.get("Locale") == language
-            ]
-            voice = choose_voice
-            voice_spinner.setlist(voices)
+            languages.set_language(ev.value["selected"])
+            voice_spinner.setlist(languages.get_voices())
+            voice_spinner.selectitem(languages.get_voice_idx())
         elif ev.type == tg.Event.itemselected and ev.value["id"] == voice_spinner:
-            voice = ev.value["selected"]
+            languages.set_voice(ev.value["selected"])
+            voice_spinner.selectitem(languages.get_voice_idx())
         elif ev.type == tg.Event.click and ev.value["id"] == remove_file_checkbox:
-            remove_file = ev.value["set"]
+            config["remove_file"] = ev.value["set"]
         elif ev.type == tg.Event.click and ev.value["id"] == exit_:
             break
 
     quit_mpv()
-    if remove_file and os.path.exists(filename):
-        os.unlink(filename)
+    if config["remove_file"] and os.path.exists(config["filename"]):
+        os.unlink(config["filename"])
     socket_in.close()
     socket_out.close()
     a.finish()

@@ -1,0 +1,10 @@
+{
+    "language": "en-US",
+    "voice": "en-US-AndrewNeural",
+    "rate": 0,
+    "pitch": 0,
+    "volume": 0,
+    "text": "default text",
+    "filename": "default.mp3",
+    "remove_file": true
+}
