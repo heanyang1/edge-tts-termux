@@ -208,7 +208,7 @@ with tg.Connection() as c:
         if ev.type == tg.Event.destroy and ev.value["finishing"]:
             sys.exit()
         elif ev.type == tg.Event.click and ev.value["id"] == scrape:
-            scrape_text = scrape_webpage(et1.gettext())
+            scrape_text = scrape_webpage(c, et1.gettext())
             if scrape_text is not None:
                 et1.settext(scrape_text)
         elif ev.type == tg.Event.click and ev.value["id"] == request:
