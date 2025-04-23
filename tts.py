@@ -24,6 +24,7 @@ import json
 import socket
 import requests
 import html2text
+import re
 from enum import Enum
 
 
@@ -104,7 +105,12 @@ def scrape_webpage(c, url):
     h.ignore_images = True
     h.ignore_emphasis = True
     h.ignore_links = True
-    return h.handle(r.text)
+    h.ignore_mailto_links = True
+    h.ignore_tables = True
+    h.body_width = 0
+    text = h.handle(r.text)
+    text = re.sub(r"^#+\s*", "", text, flags=re.MULTILINE)
+    return text
 
 def request_tts(c, text, name, rate, pitch, volume, languages):
     global state
