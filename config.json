@@ -4,7 +4,7 @@
     "rate": 0,
     "pitch": 0,
     "volume": 0,
-    "text": "default text",
+    "text": "text or url",
     "filename": "default.mp3",
     "remove_file": true
 }

@@ -22,6 +22,8 @@ import asyncio
 import subprocess
 import json
 import socket
+import requests
+import html2text
 from enum import Enum
 
 
@@ -91,6 +93,18 @@ mpv = None
 with open("config.json", "r") as f:
     config = json.loads(f.read())
 
+def scrape_webpage(c, url):
+    try:
+        r = requests.get(url)
+        r.raise_for_status()
+    except Exception as e:
+        c.toast(f"Failed to fetch page: {e}")
+        return None
+    h = html2text.HTML2Text()
+    h.ignore_images = True
+    h.ignore_emphasis = True
+    h.ignore_links = True
+    return h.handle(r.text)
 
 def request_tts(c, text, name, rate, pitch, volume, languages):
     global state
@@ -185,6 +199,7 @@ with tg.Connection() as c:
     buttons.setheight(tg.View.WRAP_CONTENT)
     buttons.setlinearlayoutparams(0)
 
+    scrape = tg.Button(a, "scrape", buttons)
     request = tg.Button(a, "request", buttons)
     play = tg.Button(a, "play", buttons)
     exit_ = tg.Button(a, "exit", buttons)
@@ -192,6 +207,10 @@ with tg.Connection() as c:
     for ev in c.events():
         if ev.type == tg.Event.destroy and ev.value["finishing"]:
             sys.exit()
+        elif ev.type == tg.Event.click and ev.value["id"] == scrape:
+            scrape_text = scrape_webpage(et1.gettext())
+            if scrape_text is not None:
+                et1.settext(scrape_text)
         elif ev.type == tg.Event.click and ev.value["id"] == request:
             quit_mpv()
             request_tts(
