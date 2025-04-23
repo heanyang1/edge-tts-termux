@@ -231,7 +231,7 @@ with tg.Connection() as c:
                 mpv = subprocess.Popen(
                     [
                         "mpv",
-                        config["filename"],
+                        et2.gettext(),
                         "--loop-playlist",
                         f"--input-ipc-client=fd://{socket_in.fileno()}",
                     ],
@@ -260,8 +260,9 @@ with tg.Connection() as c:
             break
 
     quit_mpv()
-    if config["remove_file"] and os.path.exists(config["filename"]):
-        os.unlink(config["filename"])
+    if config["remove_file"] and os.path.exists(et2.gettext()):
+        # TODO: users may create files with different names; need to remove all of them
+        os.unlink(et2.gettext())
     socket_in.close()
     socket_out.close()
     a.finish()
