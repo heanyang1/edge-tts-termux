@@ -94,6 +94,7 @@ mpv = None
 with open("config.json", "r") as f:
     config = json.loads(f.read())
 
+
 def scrape_webpage(c, url):
     try:
         r = requests.get(url)
@@ -111,6 +112,7 @@ def scrape_webpage(c, url):
     text = h.handle(r.text)
     text = re.sub(r"^#+\s*", "", text, flags=re.MULTILINE)
     return text
+
 
 def request_tts(c, text, name, rate, pitch, volume, languages):
     global state
@@ -155,16 +157,25 @@ def quit_mpv():
 
 with tg.Connection() as c:
     a = tg.Activity(c)
-    root = tg.LinearLayout(a)
-    sv = tg.NestedScrollView(a, root)
-    layout = tg.LinearLayout(a, sv)
+    layout = tg.LinearLayout(a)
+    configuration = a.getconfiguration()
 
     title = tg.TextView(a, "Edge TTS", layout)
     title.settextsize(30)
     title.setmargin(5)
+    title.setheight(tg.View.WRAP_CONTENT)
+    title.setlinearlayoutparams(0)
 
-    et1 = tg.EditText(a, config["text"], layout, inputtype="textMultiLine")
+    sv = tg.NestedScrollView(a, layout)
+    sv.setheight(int(configuration["screenheight"] * 0.6))
+    sv.setlinearlayoutparams(0)
+    sv_layout = tg.LinearLayout(a, sv)
+
+    et1 = tg.EditText(a, config["text"], sv_layout, inputtype="textMultiLine")
+
     et2 = tg.EditText(a, config["filename"], layout)
+    et2.setheight(tg.View.WRAP_CONTENT)
+    et2.setlinearlayoutparams(0)
 
     spinners = tg.LinearLayout(a, layout, vertical=False)
     spinners.setheight(tg.View.WRAP_CONTENT)
