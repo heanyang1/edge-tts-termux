@@ -281,7 +281,7 @@ with tg.Connection() as c:
             voice_spinner.selectitem(languages.get_voice_idx())
         elif ev.type == tg.Event.click and ev.value["id"] == remove_file_checkbox:
             config["remove_file"] = ev.value["set"]
-        elif ev.type == tg.Event.click and ev.value["id"] == remove_file_checkbox:
+        elif ev.type == tg.Event.click and ev.value["id"] == quit_checkbox:
             config["quit_after_finish"] = ev.value["set"]
         elif ev.type == tg.Event.click and ev.value["id"] == exit_:
             break
