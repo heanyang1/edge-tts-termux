@@ -6,5 +6,6 @@
     "volume": 0,
     "text": "text or url",
     "filename": "default.mp3",
-    "remove_file": true
+    "remove_file": false,
+    "quit_after_finish": false
 }

@@ -195,7 +195,13 @@ with tg.Connection() as c:
     )
     remove_file_checkbox.setheight(tg.View.WRAP_CONTENT)
     remove_file_checkbox.setlinearlayoutparams(0)
-
+    
+    quit_checkbox = tg.Checkbox(
+        a, "Quit after TTS is done", layout, config["quit_after_finish"]
+    )
+    quit_checkbox.setheight(tg.View.WRAP_CONTENT)
+    quit_checkbox.setlinearlayoutparams(0)
+    
     option = tg.LinearLayout(a, layout, vertical=False)
     option.setheight(tg.View.WRAP_CONTENT)
     option.setlinearlayoutparams(0)
@@ -239,6 +245,8 @@ with tg.Connection() as c:
                 volume_et.gettext(),
                 languages,
             )
+            if config["quit_after_finish"]:
+                break
             play.settext("play")
         elif ev.type == tg.Event.click and ev.value["id"] == play:
             if state == State.START:
@@ -273,6 +281,8 @@ with tg.Connection() as c:
             voice_spinner.selectitem(languages.get_voice_idx())
         elif ev.type == tg.Event.click and ev.value["id"] == remove_file_checkbox:
             config["remove_file"] = ev.value["set"]
+        elif ev.type == tg.Event.click and ev.value["id"] == remove_file_checkbox:
+            config["quit_after_finish"] = ev.value["set"]
         elif ev.type == tg.Event.click and ev.value["id"] == exit_:
             break
 
